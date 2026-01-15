@@ -7,6 +7,14 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 
+# Visual Studio cache / user-specific files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
@@ -52,3 +60,23 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+############################
+# Docker / Ambiente Local
+############################
+# Arquivo .env com segredos locais (manter .env.template versionado)
+.env
+
+############################
+# k8s Secrets
+############################
+# Ignorar secrets reais (manter secret.template.yaml versionado)
+**/secret.yaml
+k8s/secret.yaml
+k8s/*-secret.yaml
+**/sqlserver-secret.yaml
+k8s/sqlserver-secret.yaml
+k8s/*-sqlserver-secret.yaml
+**/rabbitmq-secret.yaml
+k8s/rabbitmq-secret.yaml
+k8s/*-rabbitmq-secret.yaml

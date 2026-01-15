@@ -1,0 +1,173 @@
+name: fcg
+
+services:
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - fcg-network
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # SQL Server do Catalog
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: fcg-catalog-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${SA_PASSWORD}
+      - MSSQL_PID=${MSSQL_PID}
+    ports:
+      - "1434:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - fcg-network
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$${SA_PASSWORD}" -Q "SELECT 1" -C -b
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # Migrations do Catalog 
+  catalogapi-migrations:
+    build:
+      context: ../FCG.CatalogAPI/FCG.Catalog
+      dockerfile: FCG.Catalog.API/Dockerfile
+      target: migrations
+    image: catalogapi-migrations:latest
+    container_name: fcg-catalog-migrations
+    environment:
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRING_CATALOG}
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+    working_dir: /src
+    command: >
+      database update
+      --startup-project FCG.Catalog.API/FCG.Catalog.API.csproj
+      --project FCG.Catalog.Infrastructure/FCG.Catalog.Infrastructure.csproj
+      --configuration Release
+    networks:
+      - fcg-network
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: "no"
+
+  # Catalog API 
+  catalogapi:
+    build:
+      context: ../FCG.CatalogAPI/FCG.Catalog
+      dockerfile: FCG.Catalog.API/Dockerfile
+      target: runtime
+    image: catalogapi:latest
+    container_name: fcg-catalog-api
+    environment:
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRING_CATALOG}
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_DEFAULT_USER}
+      - RabbitMQ__Password=${RABBITMQ_DEFAULT_PASS}
+      - Jwt__SecretKey=${JWT_SECRET_KEY}
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+      - ASPNETCORE_URLS=${ASPNETCORE_URLS}
+    ports:
+      - "8080:8080"
+    networks:
+      - fcg-network
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      catalogapi-migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Migrations do Users 
+  usersapi-migrations:
+    build:
+      context: ../FCG.UsersAPI/FCG.Users
+      dockerfile: FCG.Users.API/Dockerfile
+      target: migrations
+    image: usersapi-migrations:latest
+    container_name: fcg-users-migrations
+    environment:
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRING_USER}
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+    working_dir: /src
+    command: >
+      database update
+      --startup-project FCG.Users.API/FCG.Users.API.csproj
+      --project FCG.Users.Infrastructure/FCG.Users.Infrastructure.csproj
+      --configuration Release
+    networks:
+      - fcg-network
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: "no"
+
+  # Users API
+  usersapi:
+    build:
+      context: ../FCG.UsersAPI/FCG.Users
+      dockerfile: FCG.Users.API/Dockerfile
+      target: runtime
+    image: usersapi:latest
+    container_name: fcg-users-api
+    environment:
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRING_USER}
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_DEFAULT_USER}
+      - RabbitMQ__Password=${RABBITMQ_DEFAULT_PASS}
+      - Jwt__SecretKey=${JWT_SECRET_KEY}
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+      - ASPNETCORE_URLS=${ASPNETCORE_URLS}
+      - DefaultAdmin__Password=${DEFAULT_ADMIN_PASSWORD}
+    ports:
+      - "8081:8080"
+    networks:
+      - fcg-network
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      catalogapi-migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Payments
+  payments-worker:
+    build:
+      context: ../FCG.PaymentsAPI/FCG.Payments
+      dockerfile: FCG.Payments.EventProcessor/Dockerfile
+    image: fcgpayments-worker:latest
+    pull_policy: never
+    environment:
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Username: ${RABBITMQ_DEFAULT_USER}
+      RabbitMQ__Password: ${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - fcg-network
+    restart: unless-stopped
+
+volumes:
+  sqlserver_data:
+    driver: local
+
+networks:
+  fcg-network:
+    driver: bridge
