@@ -80,3 +80,4 @@ k8s/*-sqlserver-secret.yaml
 **/rabbitmq-secret.yaml
 k8s/rabbitmq-secret.yaml
 k8s/*-rabbitmq-secret.yaml
+/docker-compose.yml
