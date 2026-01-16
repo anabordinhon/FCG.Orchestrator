@@ -2,18 +2,17 @@ $root = $PSScriptRoot
 Set-Location $root
 
 # --- Paths para manifests (k8s/) ---
-$catalogK8s = Join-Path $root "..\FCG.CatalogAPI\FCG.Catalog\k8s"
-$usersK8s   = Join-Path $root "..\FCG.UsersAPI\FCG.Users\k8s"
-$paymentsK8s = Join-Path $root "k8s\payments"
+$catalogK8s  = Resolve-Path (Join-Path $root "..\FCG.CatalogAPI\FCG.Catalog\k8s")
+$usersK8s    = Resolve-Path (Join-Path $root "..\FCG.UsersAPI\FCG.Users\k8s")
+$paymentsK8s = Resolve-Path (Join-Path $root "..\FCG.PaymentsAPI\FCG.Payments\k8s")
 
-# --- Paths para build (ajuste Dockerfile se necessário) ---
-$catalogRoot = Join-Path $root "..\FCG.CatalogAPI\FCG.Catalog"
-$usersRoot   = Join-Path $root "..\FCG.UsersAPI\FCG.Users"
-$paymentsRoot = Join-Path $root "..\FCG.PaymentsAPI\FCG.Payments"
+$catalogRoot  = Resolve-Path (Join-Path $root "..\FCG.CatalogAPI\FCG.Catalog")
+$usersRoot    = Resolve-Path (Join-Path $root "..\FCG.UsersAPI\FCG.Users")
+$paymentsRoot = Resolve-Path (Join-Path $root "..\FCG.PaymentsAPI\FCG.Payments")
 
-$catalogDockerfile = Join-Path $catalogRoot "FCG.Catalog.API\Dockerfile"
-$usersDockerfile   = Join-Path $usersRoot   "FCG.Users.API\Dockerfile"              # ajuste se necessário
-$paymentsDockerfile = Join-Path $paymentsRoot "FCG.Payments.EventProcessor\Dockerfile" # ajuste se necessário
+$catalogDockerfile   = Resolve-Path (Join-Path $catalogRoot  "FCG.Catalog.API\Dockerfile")
+$usersDockerfile     = Resolve-Path (Join-Path $usersRoot    "FCG.Users.API\Dockerfile")
+$paymentsDockerfile  = Resolve-Path (Join-Path $paymentsRoot "FCG.Payments.EventProcessor\Dockerfile")
 
 Write-Host "=== Build imagens (Catalog) ==="
 docker build -t catalogapi:latest --target runtime -f $catalogDockerfile $catalogRoot
@@ -25,6 +24,10 @@ docker build -t usersapi-migrations:latest --target migrations -f $usersDockerfi
 
 Write-Host "=== Build imagem (Payments Worker) ==="
 docker build -t fcgpayments-worker:latest -f $paymentsDockerfile $paymentsRoot
+
+Write-Host "=== Criando secrets (infra) ==="
+kubectl apply -f (Join-Path $root "sqlserver-secret.yaml")
+kubectl apply -f (Join-Path $root "rabbitmq-secret.yaml")
 
 Write-Host "=== Subindo infra (SQL Server) ==="
 kubectl apply -f (Join-Path $root "infrastructure-sqlserver.yaml")
@@ -42,7 +45,7 @@ kubectl wait --for=condition=ready pod -l app=catalogapi --timeout=600s
 
 Write-Host "=== Aplicando Users (/k8s) ==="
 kubectl apply -f $usersK8s
-kubectl wait --for=condition=ready pod -l app=usersapi --timeout=600s
+kubectl wait --for=condition=ready pod -l app=users-api --timeout=600s
 
 Write-Host "=== Aplicando Payments Worker (k8s/payments) ==="
 kubectl apply -f $paymentsK8s
