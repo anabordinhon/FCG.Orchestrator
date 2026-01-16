@@ -51,6 +51,7 @@ services:
       - ConnectionStrings__DefaultConnection=${CONNECTION_STRING_CATALOG}
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
     working_dir: /src
+    entrypoint: ["dotnet", "ef"]
     command: >
       database update
       --startup-project FCG.Catalog.API/FCG.Catalog.API.csproj
@@ -104,6 +105,7 @@ services:
       - ConnectionStrings__DefaultConnection=${CONNECTION_STRING_USER}
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
     working_dir: /src
+    entrypoint: ["dotnet", "ef"]
     command: >
       database update
       --startup-project FCG.Users.API/FCG.Users.API.csproj
@@ -164,7 +166,7 @@ services:
       - fcg-network
     restart: unless-stopped
 
-  # Notifications (Corrigida a indentação aqui)
+  # Notifications
   notifications-processor:
     build:
       context: ../FCG.NotificationsAPI/FCG.Notifications
