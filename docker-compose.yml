@@ -142,7 +142,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      catalogapi-migrations:
+      usersapi-migrations:
         condition: service_completed_successfully
     restart: unless-stopped
 
@@ -157,6 +157,25 @@ services:
       RabbitMQ__Host: rabbitmq
       RabbitMQ__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMQ__Password: ${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - fcg-network
+    restart: unless-stopped
+
+  # Notifications (Corrigida a indentação aqui)
+  notifications-processor:
+    build:
+      context: ../FCG.NotificationsAPI/FCG.Notifications
+      dockerfile: FCG.Notifications.EventProcessor/Dockerfile
+    image: notifications-event-processor:latest
+    container_name: fcg-notifications-processor
+    pull_policy: never
+    environment:
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_DEFAULT_USER}
+      - RabbitMQ__Password=${RABBITMQ_DEFAULT_PASS}
     depends_on:
       rabbitmq:
         condition: service_healthy
